@@ -79,7 +79,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 6. Sync the Android 15 / 6.6 AOSP Toolchain
+      # 6. Sync the Android 15 / 6.6 AOSP Toolchain and merge safely
       - name: Sync AOSP Toolchain (Android 15 / 6.6)
         run: |
           mkdir aosp-toolchain
@@ -89,10 +89,17 @@ jobs:
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android15-6.6 --depth=1
           repo sync -c --no-clone-bundle --no-tags -j$(nproc)
           
-          # FIXED: Move the folders into the 'kernel/' subdirectory 
-          mv build external prebuilts tools ../kernel/
+          # Ensure destination directories exist inside the kernel/ folder
+          mkdir -p ../kernel/build ../kernel/external ../kernel/prebuilts ../kernel/tools
           
-          # Clean up the temporary toolchain folder
+          # Safely merge AOSP components into existing directories without throwing errors
+          echo "Merging toolchain components into the kernel tree..."
+          cp -r build/. ../kernel/build/
+          cp -r external/. ../kernel/external/
+          cp -r prebuilts/. ../kernel/prebuilts/
+          cp -r tools/. ../kernel/tools/
+          
+          # Clean up the temporary toolchain folder to save disk space
           cd ..
           rm -rf aosp-toolchain
 
