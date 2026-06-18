@@ -9,14 +9,37 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Manual Clean up to maximize storage space
+      # 1. Clean up the runner to maximize free space quietly (~35GB+ reclaimed)
       - name: Free Disk Space Manually
         run: |
-          sudo apt-get purge -y azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* mysql* dotnet-sdk-* openjdk-*
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift /usr/local/share/powershell /opt/hostedtoolcache/Java
-          docker image prune --all --force
+          echo "=== Disk Space BEFORE Cleanup ==="
+          df -h
+          
+          echo "Purging core heavy package engines quietly..."
+          # Removed wildcards to prevent log spamming, added -qq for quiet mode
+          sudo apt-get purge -y -qq azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql mysql-server
+          sudo apt-get autoremove -y -qq
+          sudo apt-get clean -qq
+          
+          echo "Deleting massive pre-installed software directories (Silent & Fast)..."
+          # rm -rf is completely silent and ignores files/folders that don't exist
+          sudo rm -rf /usr/local/lib/android     # Android SDK (~12GB)
+          sudo rm -rf /usr/share/dotnet          # .NET Core SDK (~4-5GB)
+          sudo rm -rf /opt/ghc                   # Haskell compiler (~2GB)
+          sudo rm -rf /usr/share/swift           # Swift runtime (~1GB)
+          sudo rm -rf /usr/local/share/boost     # Boost C++ Libraries (~4GB)
+          sudo rm -rf /opt/hostedtoolcache/CodeQL # CodeQL analysis tools (~5GB)
+          sudo rm -rf /opt/hostedtoolcache/Java   # Extraneous Java versions
+          sudo rm -rf /usr/local/share/powershell # PowerShell modules
+          
+          echo "Cleaning up residual configuration directories..."
+          sudo rm -rf /etc/mysql /opt/az /etc/apt/sources.list.d/*
+          
+          echo "Purging background docker cache layers..."
+          docker image prune --all --force > /dev/null
+          
+          echo "=== Disk Space AFTER Cleanup ==="
+          df -h
 
       # 2. Install Build Dependencies, Python PIP, and Google Repo tool
       - name: Install Build Dependencies & Repo Tool
@@ -42,7 +65,7 @@ jobs:
       # 4. Handle double extraction & drop intermediate archives instantly
       - name: Extract Samsung Kernel Archive
         run: |
-          echo "Extracting Kernel.tar.gz to Kernel.tar..."
+          echo "Extracting Kernel.tar.gz directly to working directories..."
           tar -xzvf Kernel.tar.gz
           rm Kernel.tar.gz 
           
@@ -61,9 +84,15 @@ jobs:
         run: |
           mkdir aosp-toolchain
           cd aosp-toolchain
+          
+          # Sync the toolchain elements
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android15-6.6 --depth=1
           repo sync -c --no-clone-bundle --no-tags -j$(nproc)
-          mv build external prebuilts tools ..
+          
+          # FIXED: Move the folders into the 'kernel/' subdirectory 
+          mv build external prebuilts tools ../kernel/
+          
+          # Clean up the temporary toolchain folder
           cd ..
           rm -rf aosp-toolchain
 
