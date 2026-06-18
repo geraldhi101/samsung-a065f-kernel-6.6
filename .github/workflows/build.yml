@@ -79,21 +79,31 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 6. Sync the Android 15 / 6.6 AOSP Toolchain and isolate prebuilts
+      # 6. Sync the Android 15 / 6.6 AOSP Toolchain and merge seamlessly
       - name: Sync AOSP Toolchain (Android 15 / 6.6)
         run: |
           mkdir aosp-toolchain
           cd aosp-toolchain
           
-          # Sync the toolchain element maps
+          # Sync the toolchain elements
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android15-6.6 --depth=1
           repo sync -c --no-clone-bundle --no-tags -j$(nproc)
           
-          # ONLY move the prebuilts compiler tree, leaving Samsung's custom build/external/tools intact
-          echo "Injecting missing AOSP prebuilt compilers into kernel tree..."
-          mv prebuilts ../kernel/
+          # Ensure destination directories exist inside the kernel/ folder
+          mkdir -p ../kernel/build ../kernel/external ../kernel/prebuilts ../kernel/tools
           
-          # Clean up the rest of the stock toolchain folders to save space
+          # FIXED: Force unlock write permissions so Linux allows overwriting/merging files
+          echo "Unlocking write permissions on existing kernel directories..."
+          chmod -R +w ../kernel/build ../kernel/external ../kernel/tools || true
+          
+          # Safely merge all required AOSP workspace components into the kernel tree
+          echo "Merging toolchain components into the kernel tree..."
+          cp -r build/. ../kernel/build/
+          cp -r external/. ../kernel/external/
+          cp -r prebuilts/. ../kernel/prebuilts/
+          cp -r tools/. ../kernel/tools/
+          
+          # Clean up the temporary toolchain folder to save disk space
           cd ..
           rm -rf aosp-toolchain
           
