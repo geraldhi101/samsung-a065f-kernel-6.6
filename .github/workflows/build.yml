@@ -49,12 +49,7 @@ jobs:
           
           # Install gdown to pull files securely from Google Drive
           pip3 install gdown
-          
-          mkdir -p ~/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-          chmod a+x ~/bin/repo
-          echo "~/bin" >> $GITHUB_PATH
-
+        
       # 3. Securely pull Kernel.tar.gz from Google Drive
       - name: Fetch Kernel from Google Drive
         run: |
@@ -62,12 +57,27 @@ jobs:
           # REPLACE the URL below with your actual Google Drive Share Link or File ID
           gdown "https://drive.google.com/file/d/1mYxE44LH-xz8fg0GuEYxcJ-f7OS6mGke/view?usp=sharing" -O Kernel.tar.gz
 
+          echo "Downloading Toolchain.tar.gz from Google Drive..."
+          gdown "https://drive.google.com/file/d/1OxwZZNzDaY-VoSqJSFjPuKfKKQuzNcUP/view?usp=sharing" -O Toolchain.tar.gz
+
       # 4. Handle double extraction & drop intermediate archives instantly
       - name: Extract Samsung Kernel Archive
         run: |
           echo "Extracting Kernel.tar.gz directly to working directories..."
           tar -xzvf Kernel.tar.gz
           rm Kernel.tar.gz 
+
+          echo "Extracting Toolchain.tar.gz..."
+          mkdir temp_toolchain
+          tar -xzvf Toolchain.tar.gz -C temp_toolchain
+          
+          echo "Handling nested toolchain.tar..."
+          cd temp_toolchain
+          if [ -f toolchain.tar ]; then
+            tar -xvf toolchain.tar
+            rm toolchain.tar
+          fi
+          cd ..
           
           echo "Verifying local directory structure:"
           ls -la
@@ -79,33 +89,26 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 6. Sync the Android 15 / 6.6 AOSP Toolchain and merge seamlessly
-      - name: Sync AOSP Toolchain (Android 15 / 6.6)
+      # 6. Merge Samsung Toolchain seamlessly into Workspace
+      - name: Merge Samsung Toolchain
         run: |
-          mkdir aosp-toolchain
-          cd aosp-toolchain
-          
-          # Sync the toolchain elements
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android15-6.6 --depth=1
-          repo sync -c --no-clone-bundle --no-tags -j$(nproc)
-          
-          # Ensure destination directories exist inside the kernel/ folder
-          mkdir -p ../kernel/build ../kernel/external ../kernel/prebuilts ../kernel/tools
-          
-          # FIXED: Force unlock write permissions so Linux allows overwriting/merging files
           echo "Unlocking write permissions on existing kernel directories..."
-          chmod -R +w ../kernel/build ../kernel/external ../kernel/tools || true
+          chmod -R +w kernel/ kernel-6.6/ vendor/ || true
           
-          # Safely merge all required AOSP workspace components into the kernel tree
           echo "Merging toolchain components into the kernel tree..."
-          cp -r build/. ../kernel/build/
-          cp -r external/. ../kernel/external/
-          cp -r prebuilts/. ../kernel/prebuilts/
-          cp -r tools/. ../kernel/tools/
+          mkdir -p kernel/build kernel/external kernel/prebuilts
+          
+          # Safely merge the extracted toolchain components
+          rsync -a temp_toolchain/build/ kernel/build/ 2>/dev/null || true
+          rsync -a temp_toolchain/external/ kernel/external/ 2>/dev/null || true
+          rsync -a temp_toolchain/prebuilts/ kernel/prebuilts/ 2>/dev/null || true
+          
+          if [ -d "temp_toolchain/kernel" ]; then
+            rsync -a temp_toolchain/kernel/ kernel/ 2>/dev/null || true
+          fi
           
           # Clean up the temporary toolchain folder to save disk space
-          cd ..
-          rm -rf aosp-toolchain
+          rm -rf temp_toolchain Toolchain.tar.gz
           
       # 7. Automatically patch the kernel tree for KernelSU
       - name: Inject KernelSU
