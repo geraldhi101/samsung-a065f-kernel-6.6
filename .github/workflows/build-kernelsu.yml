@@ -143,11 +143,23 @@ jobs:
           echo "Here is what we gathered:"
           ls -la output_flat/
 
-      # 10. Upload the flat directory contents
-      - name: Upload Rooted Kernel Artifacts
-        uses: actions/upload-artifact@v4
+          echo "Zipping the gathered kernel and modules..."
+          cd output_flat
+          zip -r9 ../Samsung-A06-KernelSU.zip *
+          cd ..
+          
+          echo "Zip created successfully."
+          ls -la Samsung-A06-KernelSU.zip
+
+      # 10. Upload directly to GitHub Releases
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: Samsung-A06-KernelSU
-          # The asterisk tells it to upload the contents, NOT the folder itself
-          path: output_flat/*
-          if-no-files-found: error
+          tag_name: "v1.0-${{ github.run_number }}"
+          name: "Samsung A06 KernelSU Build #${{ github.run_number }}"
+          body: |
+            Automated KernelSU build for the Samsung A06.
+            **Contents:**
+            * Compiled `Image.gz`
+            * Associated `.ko` modules (if compiled by the script)
+          files: Samsung-A06-KernelSU.zip
