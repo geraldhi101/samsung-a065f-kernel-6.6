@@ -122,8 +122,13 @@ jobs:
       - name: Inject KernelSU
         run: |
           cd kernel-6.6
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-
+          # Run the official setup script to download and integrate the code
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v3.2.4
+          
+          echo "Bypassing sandbox git version check bug..."
+          # Find the exact line in Kbuild where the fallback is defined and replace the 16 with your version
+          sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=32457/g' KernelSU/kernel/Kbuild
+          
       # 8. Fire off the original wrapper script provided by Samsung
       - name: Execute Samsung Kernel Build
         run: |
