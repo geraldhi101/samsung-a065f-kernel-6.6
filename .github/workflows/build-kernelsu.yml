@@ -130,47 +130,36 @@ jobs:
           chmod +x build_kernel.sh
           ./build_kernel.sh
 
-      # 9. Gather outputs for both Release (Stripped) and Debug (Unstripped)
-      - name: Prepare Dual Artifacts
+      # 9. Gather the final kernel and package it cleanly
+      - name: Prepare Artifacts for Release
         run: |
-          echo "Creating directories for Release and Debug..."
-          mkdir -p output_release/modules
-          mkdir -p output_debug/modules
+          echo "Creating output directory..."
+          mkdir -p output_release
           
-          echo "Copying Image.gz to both..."
+          echo "Copying the exact Image.gz file..."
           cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/
-          cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_debug/
           
-          echo "Copying .ko modules to both..."
-          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_release/modules/ || true
-          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_debug/modules/ || true
+          echo "Copying .ko kernel modules (if any exist)..."
+          mkdir -p output_release/modules
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_release/modules/ > /dev/null 2>&1 || true
           
-          echo "Stripping debug symbols from the Release version ONLY..."
-          aarch64-linux-gnu-strip --strip-unneeded output_release/modules/*.ko || true
+          # Clean up the modules folder if it ended up being empty
+          rmdir output_release/modules 2>/dev/null || true
           
-          echo "Zipping the Production Release (Stripped)..."
+          echo "Zipping the final Production Release..."
           cd output_release
-          zip -r9 ../Samsung-A06-KernelSU-Release.zip *
-          cd ..
-          
-          echo "Zipping the Developer Debug (Unstripped)..."
-          cd output_debug
-          zip -r9 ../Samsung-A06-KernelSU-Debug.zip *
+          zip -r9 ../Samsung-A06-KernelSU.zip *
           cd ..
 
-      # 10. Upload BOTH directly to GitHub Releases
+      # 10. Upload directly to GitHub Releases
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.0-${{ github.run_number }}"
-          name: "Samsung A06 KernelSU Build #${{ github.run_number }}"
+          tag_name: "v1.0"
+          name: "Samsung A06 KernelSU Build v1.0"
           body: |
             Automated KernelSU build for the Samsung A06.
             
             **Included Files:**
-            * 📦 `...-Release.zip`: Stripped and lightweight. **(Flash this one!)**
-            * 🛠️ `...-Debug.zip`: Unstripped with debug symbols. (For developers/crash tracing only).
-          # You can list multiple files here by using the pipe (|) and putting them on new lines
-          files: |
-            Samsung-A06-KernelSU-Release.zip
-            Samsung-A06-KernelSU-Debug.zip
+            * 📦 `Image.gz` (All drivers are built-in)
+          files: Samsung-A06-KernelSU.zip
