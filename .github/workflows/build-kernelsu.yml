@@ -98,23 +98,25 @@ jobs:
       # 6. Merge Samsung Toolchain seamlessly into Workspace
       - name: Merge Samsung Toolchain
         run: |
-          echo "Unlocking write permissions on existing kernel directories..."
-          chmod -R +w kernel/ kernel-6.6/ vendor/ || true
+          echo "Unlocking write permissions on existing directories and toolchain..."
+          # TWEAK 1: Added temp_toolchain/ to unlock it so Linux doesn't complain when deleting
+          chmod -R +w kernel/ kernel-6.6/ vendor/ temp_toolchain/ || true
           
           echo "Merging toolchain components into the kernel tree..."
           mkdir -p kernel/build kernel/external kernel/prebuilts
           
-          # Safely merge the extracted toolchain components
-          rsync -a temp_toolchain/build/ kernel/build/ 2>/dev/null || true
-          rsync -a temp_toolchain/external/ kernel/external/ 2>/dev/null || true
-          rsync -a temp_toolchain/prebuilts/ kernel/prebuilts/ 2>/dev/null || true
+          # TWEAK 2: Upgraded the silencer to block ALL output and errors
+          rsync -a temp_toolchain/build/ kernel/build/ > /dev/null 2>&1 || true
+          rsync -a temp_toolchain/external/ kernel/external/ > /dev/null 2>&1 || true
+          rsync -a temp_toolchain/prebuilts/ kernel/prebuilts/ > /dev/null 2>&1 || true
           
           if [ -d "temp_toolchain/kernel" ]; then
-            rsync -a temp_toolchain/kernel/ kernel/ 2>/dev/null || true
+            rsync -a temp_toolchain/kernel/ kernel/ > /dev/null 2>&1 || true
           fi
           
-          # Clean up the temporary toolchain folder to save disk space
-          rm -rf temp_toolchain Toolchain.tar.gz
+          echo "Cleaning up temporary files..."
+          # TWEAK 3: Total silencer on the removal command
+          rm -rf temp_toolchain Toolchain.tar.gz > /dev/null 2>&1
           
       # 7. Automatically patch the kernel tree for KernelSU
       - name: Inject KernelSU
@@ -128,32 +130,35 @@ jobs:
           chmod +x build_kernel.sh
           ./build_kernel.sh
 
-      # 9. Gather all outputs into a flat directory
-      - name: Prepare Flat Artifacts
+      # 9. Gather outputs for both Release (Stripped) and Debug (Unstripped)
+      - name: Prepare Dual Artifacts
         run: |
-          echo "Creating a flat output directory..."
-          mkdir -p output_flat
+          echo "Creating directories for Release and Debug..."
+          mkdir -p output_release/modules
+          mkdir -p output_debug/modules
           
-          echo "Hunting down the Image.gz file..."
-          # This searches everywhere inside 'out/' and copies Image.gz to our flat folder
-          find out/ -name "Image.gz" -type f -exec cp {} output_flat/ \;
+          echo "Copying Image.gz to both..."
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_debug/
           
-          echo "Hunting down all .ko kernel modules..."
-          # This grabs every .ko file, regardless of where Samsung hid it
-          find out/ -name "*.ko" -type f -exec cp {} output_flat/ \;
+          echo "Copying .ko modules to both..."
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_release/modules/ || true
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_debug/modules/ || true
           
-          echo "Here is what we gathered:"
-          ls -la output_flat/
-
-          echo "Zipping the gathered kernel and modules..."
-          cd output_flat
-          zip -r9 ../Samsung-A06-KernelSU.zip *
+          echo "Stripping debug symbols from the Release version ONLY..."
+          aarch64-linux-gnu-strip --strip-unneeded output_release/modules/*.ko || true
+          
+          echo "Zipping the Production Release (Stripped)..."
+          cd output_release
+          zip -r9 ../Samsung-A06-KernelSU-Release.zip *
           cd ..
           
-          echo "Zip created successfully."
-          ls -la Samsung-A06-KernelSU.zip
+          echo "Zipping the Developer Debug (Unstripped)..."
+          cd output_debug
+          zip -r9 ../Samsung-A06-KernelSU-Debug.zip *
+          cd ..
 
-      # 10. Upload directly to GitHub Releases
+      # 10. Upload BOTH directly to GitHub Releases
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
@@ -161,7 +166,11 @@ jobs:
           name: "Samsung A06 KernelSU Build #${{ github.run_number }}"
           body: |
             Automated KernelSU build for the Samsung A06.
-            **Contents:**
-            * Compiled `Image.gz`
-            * Associated `.ko` modules (if compiled by the script)
-          files: Samsung-A06-KernelSU.zip
+            
+            **Included Files:**
+            * 📦 `...-Release.zip`: Stripped and lightweight. **(Flash this one!)**
+            * 🛠️ `...-Debug.zip`: Unstripped with debug symbols. (For developers/crash tracing only).
+          # You can list multiple files here by using the pipe (|) and putting them on new lines
+          files: |
+            Samsung-A06-KernelSU-Release.zip
+            Samsung-A06-KernelSU-Debug.zip
