@@ -135,7 +135,7 @@ jobs:
           chmod +x build_kernel.sh
           ./build_kernel.sh
 
-      # 9. Gather the final kernel and package it cleanly
+      # 9. Gather the final kernel binary
       - name: Prepare Artifacts for Release
         run: |
           echo "Creating output directory..."
@@ -144,27 +144,19 @@ jobs:
           echo "Copying the exact Image.gz file..."
           cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/
           
-          echo "Copying .ko kernel modules (if any exist)..."
-          mkdir -p output_release/modules
-          cp out/target/product/a06/obj/KLEAF_OBJ/dist/*/*.ko output_release/modules/ > /dev/null 2>&1 || true
-          
-          # Clean up the modules folder if it ended up being empty
-          rmdir output_release/modules 2>/dev/null || true
-          
-          echo "Zipping the final Production Release..."
-          cd output_release
-          zip -r9 ../Samsung-A06-KernelSU.zip *
-          cd ..
+          echo "Kernel binary is ready for upload!"
 
       # 10. Upload directly to GitHub Releases
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
+          # Using a static tag name (Update this manually when you want a new version)
           tag_name: "v1.0"
-          name: "Samsung A06 KernelSU Build v1.0"
+          name: "Samsung A06 KernelSU"
           body: |
             Automated KernelSU build for the Samsung A06.
             
             **Included Files:**
-            * 📦 `Image.gz` (All drivers are built-in)
-          files: Samsung-A06-KernelSU.zip
+            * 📦 `Image.gz` (Image file to be packed with boot.img by using magiskboot )
+          # Pointing directly to the raw file instead of a zip archive
+          files: output_release/Image.gz
