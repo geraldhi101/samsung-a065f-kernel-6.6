@@ -73,9 +73,9 @@ jobs:
             rm Kernel.tar
           fi
 
-          echo "Extracting Toolchain.tar.gz..."
+          echo "Extracting toolchain.tar.gz..."
           mkdir temp_toolchain
-          tar -xzvf Toolchain.tar.gz -C temp_toolchain
+          tar -xzvf toolchain.tar.gz -C temp_toolchain
           
           echo "Handling nested toolchain.tar..."
           cd temp_toolchain
