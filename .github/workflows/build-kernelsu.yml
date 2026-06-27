@@ -64,24 +64,25 @@ jobs:
         run: |
           echo "Extracting Kernel.tar.gz directly to working directories..."
           tar -xzvf Kernel.tar.gz
-          rm Kernel.tar.gz
+          rm -f Kernel.tar.gz
           
           # Safety net for nested Kernel.tar
           if [ -f Kernel.tar ]; then
             echo "Unpacking nested Kernel.tar..."
             tar -xvf Kernel.tar
-            rm Kernel.tar
+            rm -f Kernel.tar
           fi
 
           echo "Extracting toolchain.tar.gz..."
           mkdir temp_toolchain
           tar -xzvf toolchain.tar.gz -C temp_toolchain
+          rm -f toolchain.tar.gz
           
           echo "Handling nested toolchain.tar..."
           cd temp_toolchain
           if [ -f toolchain.tar ]; then
             tar -xvf toolchain.tar
-            rm toolchain.tar
+            rm -f toolchain.tar
           fi
           cd ..
           
@@ -116,18 +117,33 @@ jobs:
           
           echo "Cleaning up temporary files..."
           # TWEAK 3: Total silencer on the removal command
-          rm -rf temp_toolchain Toolchain.tar.gz > /dev/null 2>&1
+          rm -rf temp_toolchain > /dev/null 2>&1
           
       # 7. Automatically patch the kernel tree for KernelSU
       - name: Inject KernelSU
         run: |
+          echo "Entering the kernel source directory..."
           cd kernel-6.6
-          # Run the official setup script to download and integrate the code
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v3.2.4
           
-          echo "Bypassing sandbox git version check bug..."
-          # Find the exact line in Kbuild where the fallback is defined and replace the 16 with your version
-          sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=32457/g' KernelSU/kernel/Kbuild
+          echo "Fetching the LATEST STABLE KernelSU release..."
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          
+          echo "Calculating fully dynamic KSU_VERSION..."
+          cd KernelSU
+          # Safety net: Ensure we have the full git history so the commit count isn't "1"
+          git fetch --unshallow || true
+          # Count the commits and do the math
+          KSU_TAG=$(git describe --abbrev=0 --tags)
+          KSU_MAJOR=$(echo "$KSU_TAG" | sed -E 's/^v([0-9]+).*/\1/')
+          KSU_GIT_COUNT=$(git rev-list --count HEAD)
+          
+          # Exact match of the Makefile math: (Major * 10000) + Commit Count
+          KSU_DYNAMIC_VERSION=$(( (KSU_MAJOR * 10000) + KSU_GIT_COUNT ))
+          echo "Calculated Version Code: $KSU_DYNAMIC_VERSION"
+          cd ..
+          
+          echo "Bypassing sandbox bug by patching dynamic version..."
+          sed -i "s/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=$KSU_DYNAMIC_VERSION/g" KernelSU/kernel/Kbuild
           
       # 8. Fire off the original wrapper script provided by Samsung
       - name: Execute Samsung Kernel Build
@@ -135,16 +151,36 @@ jobs:
           chmod +x build_kernel.sh
           ./build_kernel.sh
 
-      # 9. Gather the final kernel binary
+      # 9. Gather the final kernel binary and .ko modules files
       - name: Prepare Artifacts for Release
         run: |
           echo "Creating output directory..."
-          mkdir -p output_release
+          mkdir -p output_release/modules
           
           echo "Copying the exact Image.gz file..."
-          cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/
+          cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/ || echo "Image.gz not found!"
+
+          echo "Recursively gathering all compiled kernel modules (.ko files)..."
+          find out/target/product/a06/obj/KLEAF_OBJ/dist/ -name "*.ko" -exec cp {} output_release/modules/ \;
+
+          MODULE_COUNT=$(ls -1q output_release/modules/ | wc -l)
           
-          echo "Kernel binary is ready for upload!"
+          if [ "$MODULE_COUNT" -eq 0 ]; then
+            echo "There are no .ko files found! Skipping tar creation."
+          else
+            echo "Found $MODULE_COUNT .ko files! Bundling into archive..."
+            tar -czvf output_release/modules.tar.gz -C output_release/modules .
+          fi
+          
+          echo "Image.gz and *.ko files are ready for upload!"
+
+      # 9. Upload to GitHub Actions Artifacts
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Samsung-A06-KernelSU
+          path: output_release/
+          if-no-files-found: error
 
       # 10. Upload directly to GitHub Releases
       - name: Publish to GitHub Releases
@@ -154,9 +190,14 @@ jobs:
           tag_name: "v1.0"
           name: "Samsung A06 KernelSU"
           body: |
-            Automated KernelSU build for the Samsung A06.
-            
+            Automated KernelSU build for the Samsung A06.            
             **Included Files:**
-            * 📦 `Image.gz` (Image file to be packed with boot.img by using magiskboot )
-          # Pointing directly to the raw file instead of a zip archive
-          files: output_release/Image.gz
+            * `Image.gz`: Image file to be packed with boot.img by using magiskboot )
+            * `modules.tar.gz`: Compiled debugging modules 
+          draft: false
+          prerelease: false
+          files: |
+            output_release/Image.gz
+            output_release/modules.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
