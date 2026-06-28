@@ -42,10 +42,10 @@ jobs:
           df -h
 
       # 2. Install Build Dependencies and Python PIP fo Gdown
-      - name: Install Build Dependencies & Repo Tool
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 python3-pip python-is-python3
+          sudo apt-get install -y git-core gnupg flex bison build-essential binutils-aarch64-linux-gnu zip curl zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 python3-pip python-is-python3
           
           # Install gdown to pull files securely from Google Drive
           pip3 install gdown
@@ -130,8 +130,10 @@ jobs:
           
           echo "Calculating fully dynamic KSU_VERSION..."
           cd KernelSU
+          
           # Safety net: Ensure we have the full git history so the commit count isn't "1"
-          git fetch --unshallow || true
+          git fetch --unshallow > /dev/null 2>&1 || true
+          
           # Count the commits and do the math
           KSU_TAG=$(git describe --abbrev=0 --tags)
           KSU_MAJOR=$(echo "$KSU_TAG" | sed -E 's/^v([0-9]+).*/\1/')
@@ -169,11 +171,11 @@ jobs:
             echo "There are no .ko files found! Skipping tar creation."
           else
             echo "Creating the Debug archive with symbols"
-            tar -czvf output_release/modules-debug-symbols.tar.gz -C output_release/modules .
+            tar -czvf output_release/modules-with-symbols.tar.gz -C output_release/modules .
+            
             echo "Creating the Debug archive without symbols"
-            aarch64-linux-android-strip --strip-debug output_release/modules/*.ko || strip --strip-debug output_release/modules/*.ko || true
-            echo "Creating the tiny, optimized Archive for normal users..."
-            tar -czvf output_release/modules-optimized.tar.gz -C output_release/modules .
+            find output_release/modules/ -name "*.ko" -exec aarch64-linux-gnu-strip --strip-debug {} \;
+            tar -czvf output_release/modules-without-symbols.tar.gz -C output_release/modules .
           fi
           
           echo "Image.gz and *.ko files are ready for upload!"
@@ -183,19 +185,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           # Using a static tag name (Update this manually when you want a new version)
-          tag_name: "v1.0"
+          tag_name: "KernelSU"
           name: "Samsung A06 KernelSU"
           body: |
             Automated KernelSU build for the Samsung A06.            
             **Included Files:**
             * `Image.gz`: Image file to be packed with boot.img by using magiskboot
-            * `modules-with-debug-symbols.tar.gz`: Compiled debugging modules with symbols
-            * `modules-without-debug-symbols.tar.gz`: Compiled debugging modules without symbols
+            * `modules-with-symbols.tar.gz`: Compiled debugging modules with symbols
+            * `modules-without-symbols.tar.gz`: Compiled debugging modules without symbols
           draft: false
           prerelease: false
           files: |
             output_release/Image.gz
-            output_release/modules-with-debug-symbols.tar.gz
-            output_release/modules-without-debug-symbols.tar.gz
+            output_release/modules-with-symbols.tar.gz
+            output_release/modules-without-symbols.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
