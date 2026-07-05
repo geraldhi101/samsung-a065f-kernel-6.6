@@ -174,13 +174,13 @@ jobs:
           else
             echo "Creating the Debug archive with symbols..."
             # Move into the folder, get flat filenames, and pipe them directly into tar
-            (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-debug-symbols.tar.gz -T -)
+            (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-with-symbols.tar.gz -T -)
               
             echo "Stripping debug symbols for the optimized archive..."
             find output_release/modules/ -name "*.ko" -exec aarch64-linux-gnu-strip --strip-debug {} \;
               
             echo "Creating the tiny, optimized archive for normal users..."
-            (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-optimized.tar.gz -T -)
+            (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-without-symbols.tar.gz -T -)
           fi
           
           echo "Image.gz and *.ko files are ready for upload!"
@@ -196,8 +196,8 @@ jobs:
             Automated KernelSU build for the Samsung A06 (SM-A065F).            
             **Included Files:**
             * `Image.gz`: Image file to be packed with boot.img by using magiskboot
-            * `modules-with-symbols.tar.gz`: Compiled debugging modules with symbols
-            * `modules-without-symbols.tar.gz`: Compiled debugging modules without symbols
+            * `modules-with-symbols.tar.gz`: Compiled modules with debugging symbols
+            * `modules-without-symbols.tar.gz`: Compiled modules without debugging symbols
           draft: false
           prerelease: false
           files: |
