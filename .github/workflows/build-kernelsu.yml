@@ -1,11 +1,54 @@
-name: Build Samsung A06 (SM-A065F) Kernel with Kernel SU (Google Drive Fetch + Samsung Open Source Toolchain)
+name: Build Samsung A06 (SM-A065F) Kernel with Kernel SU
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch: # Allows you to manually click "Run workflow"
+  schedule:
+    - cron: '0 0 * * *' # The Watchdog trigger: Runs automatically every day at Midnight UTC
 
 jobs:
+  # ==========================================
+  # JOB 1: THE WATCHDOG
+  # ==========================================
+  watchdog:
+    name: Check for KernelSU Updates
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for the 'gh' CLI tool
+    steps:
+      - name: Compare Release Tags
+        id: check
+        run: |
+          echo "Fetching latest official KernelSU release..."
+          OFFICIAL_TAG=$(curl -sL https://api.github.com/repos/tiann/KernelSU/releases/latest | jq -r '.tag_name')
+          
+          echo "Constructing expected local tag..."
+          MY_EXPECTED_TAG="KernelSU-$OFFICIAL_TAG"
+          
+          echo "Checking the latest release in this repository..."
+          # Uses the pre-installed GitHub CLI to check your own repo's latest release
+          MY_LATEST_TAG=$(gh release view --json tagName -q '.tagName' || echo "None")
+          
+          echo "Official Latest: $OFFICIAL_TAG"
+          echo "My Latest: $MY_LATEST_TAG"
+          
+          if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
+            echo "Versions match. No new KernelSU update found. Canceling build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Mismatch detected! A new version is available. Triggering build."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ==========================================
+  # JOB 2: THE KERNEL BUILD
+  # ==========================================
   build:
     name: Purge, Fetch from Drive, Patch, and Build
+    needs: watchdog # Tells this job it MUST wait for the watchdog to finish first
+    # This 'if' statement is the gatekeeper. It runs if the watchdog found an update, OR if clicking the manual run button.
+    if: ${{ needs.watchdog.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-22.04
     permissions: 
       contents: write
@@ -45,12 +88,12 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-core gnupg flex bison build-essential binutils-aarch64-linux-gnu zip curl zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 python3-pip python-is-python3
+          sudo apt-get install -y git-core gnupg flex bison build-essential llvm zip curl zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 python3-pip python-is-python3
           
           # Install gdown to pull files securely from Google Drive
           pip3 install gdown
         
-      # 3. Securely pull Kernel.tar.gz and Toolchain.tar.gz from Google Drive
+      # 3. Securely pull Kernel.tar.gz and toolchain.tar.gz from Google Drive
       - name: Fetch Kernel and toolchain from Google Drive
         run: |
           echo "Downloading Kernel.tar.gz from Google Drive..."
@@ -177,7 +220,7 @@ jobs:
             (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-with-symbols.tar.gz -T -)
               
             echo "Stripping debug symbols for the optimized archive..."
-            find output_release/modules/ -name "*.ko" -exec aarch64-linux-gnu-strip --strip-debug {} \;
+            find output_release/modules/ -name "*.ko" -exec llvm-strip --strip-debug {} \;
               
             echo "Creating the tiny, optimized archive for normal users..."
             (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-without-symbols.tar.gz -T -)
