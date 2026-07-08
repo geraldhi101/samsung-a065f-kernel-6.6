@@ -1,0 +1,20 @@
+name: 'Fetch Samsung A06 (SM-A065F) Sources'
+description: 'Securely downloads the Samsung A06 kernel source code and custom toolchain archives from Google Drive.'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch Kernel Source and Toolchain
+      shell: bash
+      run: |
+        echo "Checking if gdown is installed..."
+        if ! command -v gdown &> /dev/null; then
+          echo "gdown not found. Installing via pip3..."
+          pip3 install --break-system-packages gdown || pip3 install gdown
+        fi
+
+        echo "Downloading Kernel.tar.gz from Google Drive..."
+        gdown "https://drive.google.com/file/d/1mYxE44LH-xz8fg0GuEYxcJ-f7OS6mGke/view?usp=sharing"
+
+        echo "Downloading toolchain.tar.gz from Google Drive..."
+        gdown "https://drive.google.com/file/d/1OxwZZNzDaY-VoSqJSFjPuKfKKQuzNcUP/view?usp=sharing"
