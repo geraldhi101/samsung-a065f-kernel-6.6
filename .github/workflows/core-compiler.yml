@@ -1,60 +1,30 @@
-name: Build Samsung A06 (SM-A065F) Kernel with Kernel SU
+name: Shared Kernel Compiler Engine
 
 on:
-  workflow_dispatch: # Allows you to manually click "Run workflow"
-  schedule:
-    - cron: '0 0 * * *' # The Watchdog trigger: Runs automatically every day at Midnight UTC
-
+  workflow_call:
+    inputs:
+      variant_name:
+        description: "Name of the root implementation"
+        required: true
+        type: string
+      setup_url:
+        description: "URL to fetch setup.sh from every root implementation" 
+        required: true
+        type: string
+      patch_script:
+        description: "Script to build the root implementation"
+        required: true
+        type: string
+        
 jobs:
-  # ==========================================
-  # JOB 1: THE WATCHDOG
-  # ==========================================
-  watchdog:
-    name: Check for KernelSU Updates
-    runs-on: ubuntu-22.04
-    outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for the 'gh' CLI tool
-    steps:
-      - name: Compare Release Tags
-        id: check
-        run: |
-          echo "Fetching latest official KernelSU release..."
-          OFFICIAL_TAG=$(curl -sL https://api.github.com/repos/tiann/KernelSU/releases/latest | jq -r '.tag_name')
-          
-          echo "Constructing expected local tag..."
-          MY_EXPECTED_TAG="KernelSU-$OFFICIAL_TAG"
-          
-          echo "Checking the latest release in this repository..."
-          # Uses the pre-installed GitHub CLI to check your own repo's latest release
-          MY_LATEST_TAG=$(gh release view --json tagName -q '.tagName' || echo "None")
-          
-          echo "Official Latest: $OFFICIAL_TAG"
-          echo "My Latest: $MY_LATEST_TAG"
-          
-          if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
-            echo "Versions match. No new KernelSU update found. Canceling build."
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          else
-            echo "Mismatch detected! A new version is available. Triggering build."
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          fi
-
-  # ==========================================
-  # JOB 2: THE KERNEL BUILD
-  # ==========================================
   build:
-    name: Purge, Fetch from Drive, Patch, and Build
-    needs: watchdog # Tells this job it MUST wait for the watchdog to finish first
-    # This 'if' statement is the gatekeeper. It runs if the watchdog found an update, OR if clicking the manual run button.
-    if: ${{ needs.watchdog.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch' }}
+    name: Purge, Fetch, Patch, and Build
     runs-on: ubuntu-22.04
     permissions: 
       contents: write
 
     steps:
-      # 1. Clean up the runner to maximize free space quietly (~35GB+ reclaimed)
+      # 1. Clean up the runner to maximize free space quietly (~20GB+ reclaimed)
       - name: Free Disk Space Manually
         run: |
           echo "=== Disk Space BEFORE Cleanup ==="
@@ -123,7 +93,7 @@ jobs:
           
           echo "Handling nested toolchain.tar..."
           cd temp_toolchain
-          # Safety for nested toolchain.tar 
+          # Safety net for nested toolchain.tar 
           if [ -f toolchain.tar ]; then
             tar -xvf toolchain.tar
             rm -f toolchain.tar
@@ -163,34 +133,18 @@ jobs:
           # Silently remove the staging folder to prevent log spam
           rm -rf temp_toolchain > /dev/null 2>&1
           
-      # 7. Automatically patch the kernel tree for KernelSU
-      - name: Inject KernelSU
+      # 7. Automatically patch the kernel tree for root implementation
+      - name: Inject Root Implementation
         run: |
           echo "Entering the kernel source directory..."
           cd kernel-6.6
           
-          echo "Fetching the LATEST STABLE KernelSU release..."
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          echo "Injecting ${{ inputs.variant_name }} setup script..."
+          curl -LSs "${{ inputs.setup_url }}" | bash -
           
-          echo "Calculating fully dynamic KSU_VERSION..."
-          cd KernelSU
-          
-          # Safety net: Ensure we have the full git history so the commit count isn't "1"
-          git fetch --unshallow > /dev/null 2>&1 || true
-          
-          # Count the commits and do the math
-          KSU_TAG=$(git describe --abbrev=0 --tags)
-          echo "KSU_TAG=$KSU_TAG" >> $GITHUB_ENV
-          KSU_MAJOR=$(echo "$KSU_TAG" | sed -E 's/^v([0-9]+).*/\1/')
-          KSU_GIT_COUNT=$(git rev-list --count HEAD)
-          
-          # Exact match of the Makefile math: (Major * 10000) + Commit Count
-          KSU_DYNAMIC_VERSION=$(( (KSU_MAJOR * 10000) + KSU_GIT_COUNT ))
-          echo "Calculated Version Code: $KSU_DYNAMIC_VERSION"
-          cd ..
-          
-          echo "Bypassing sandbox bug by patching dynamic version..."
-          sed -i "s/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=$KSU_DYNAMIC_VERSION/g" KernelSU/kernel/Kbuild
+          echo "Executing variant-specific patches..."
+          # The engine blindly executes whatever script the variant handed to it!
+          ${{ inputs.patch_script }}
           
       # 8. Fire off the original wrapper script provided by Samsung
       - name: Execute Samsung Kernel Build
@@ -233,12 +187,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           # Using a static tag name (Update this manually when you want a new version)
-          tag_name: "KernelSU-${{ env.KSU_TAG }}"
-          name: "Samsung A06 (SM-A065F) KernelSU"
+          tag_name: "${{ inputs.variant_name }}-${{ env.ROOT_TAG }}"
+          name: "Samsung A06 (SM-A065F) ${{ inputs.variant_name }}"
           body: |
-            Automated KernelSU build for the Samsung A06 (SM-A065F).            
+            Automated ${{ inputs.variant_name }} build for the Samsung A06 (SM-A065F).            
             **Included Files:**
-            * `Image.gz`: Image file to be packed with boot.img by using magiskboot
+            * `Image.gz`: Image file to be packed with boot.img using magiskboot
             * `modules-with-symbols.tar.gz`: Compiled modules with debugging symbols
             * `modules-without-symbols.tar.gz`: Compiled modules without debugging symbols
           draft: false
