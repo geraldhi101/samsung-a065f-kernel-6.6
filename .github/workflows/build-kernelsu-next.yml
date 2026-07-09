@@ -1,0 +1,75 @@
+name: Build Samsung A06 (SM-A06F) - KernelSU-Next
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  watchdog:
+    name: Check for KernelSU Updates
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Compare Release Tags
+        id: check
+        run: |
+          echo "Fetching latest official KernelSU release..."
+          OFFICIAL_TAG=$(curl -sL https://api.github.com/repos/rifsxd/KernelSU-Next/releases/latest | jq -r '.tag_name')
+          
+          echo "Constructing expected local tag..."
+          MY_EXPECTED_TAG="KernelSU-Next-$OFFICIAL_TAG"
+          
+          echo "Fetching the latest release from your repository via API..."
+          # Using curl to hit the API directly. We use the GITHUB_TOKEN to ensure we don't hit rate limits.
+          MY_LATEST_TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" | \
+            jq -r '[.[] | select(.tag_name | startswith("KernelSU-Next-"))][0].tag_name')
+          
+          # If you have never made a release before, the API returns "null". Let's handle that safely.
+          if [ "$MY_LATEST_TAG" == "null" ]; then
+            MY_LATEST_TAG="None"
+          fi
+          
+          echo "Official Latest: $OFFICIAL_TAG"
+          echo "My Latest: $MY_LATEST_TAG"
+          
+          if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
+            echo "Versions match. No new KernelSU update found. Canceling build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Mismatch detected! A new version is available. Triggering build."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+          
+  build_execution:
+    name: KernelSU-Next Build 
+    needs: watchdog
+    if: ${{ needs.watchdog.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/core-compiler.yml
+    with:
+      variant_name: "KernelSU-Next"
+      setup_url: "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
+      patch_script: |
+        echo "Change directory to KernelSU-Next directory..."
+        cd KernelSU-Next
+              
+        # Safety net: Ensure we have the full git history so the commit count isn't "1"
+        git fetch --unshallow > /dev/null 2>&1 || true
+        
+        # Count the commits and do the math
+        KSUN_TAG=$(git describe --abbrev=0 --tags)
+        echo "ROOT_TAG=$KSUN_TAG" >> $GITHUB_ENV
+        KSUN_MAJOR=$(echo "$KSUN_TAG" | sed -E 's/^v([0-9]+).*/\1/')
+        KSUN_GIT_COUNT=$(git rev-list --count HEAD)
+        
+        # Exact match of the Kbuild math: (Major * 10000) + Commit Count
+        KSUN_DYNAMIC_VERSION=$(( (KSUN_MAJOR * 10000) + KSU_GIT_COUNT ))
+        echo "Calculated Version Code: $KSUN_DYNAMIC_VERSION"
+        echo "Bypassing sandbox bug by patching dynamic version..."
+        sed -i "s/KSU_VERSION_FALLBACK := 1/KSU_VERSION_FALLBACK := $KSUN_DYNAMIC_VERSION/g" kernel/Kbuild
+        sed -i "s/KSU_VERSION_TAG_FALLBACK := v0.0.1/KSU_VERSION_TAG_FALLBACK := $KSUN_TAG/g" kernel/Kbuild
+        
+        cd ..
+    secrets: inherit
