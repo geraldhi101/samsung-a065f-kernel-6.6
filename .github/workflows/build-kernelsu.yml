@@ -9,28 +9,9 @@ jobs:
   watchdog:
     name: Check for KernelSU Updates
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
     steps:
-      # - name: DIAGNOSTIC DUMP
-      #   env:
-      #     GH_TOKEN: ${{ github.token }}
-      #   run: |
-      #     echo "=== DIAGNOSTIC START ==="
-          
-      #     echo "1. Checking authentication status..."
-      #     gh auth status
-          
-      #     echo "2. Printing raw visual table of all releases..."
-      #     gh release list --limit 100
-          
-      #     echo "3. Printing raw JSON dump of tags..."
-      #     gh release list --limit 100 --json tagName
-          
-      #     echo "=== DIAGNOSTIC END ==="
-          
       - name: Compare Release Tags
         id: check
         env:
@@ -44,9 +25,6 @@ jobs:
           
           echo "Fetching the latest release from repository ..."
           MY_LATEST_TAG=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName --jq '.[].tagName' | grep -E "^KernelSU-v?[0-9]" | head -n 1)
-          # MY_LATEST_TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          #   "https://api.github.com/repos/${{ github.repository }}/releases" | \
-          #   jq -r '[.[] | select(.tag_name | startswith("KernelSU-"))][0].tag_name')
           
           if [ "$MY_LATEST_TAG" == "null" ]; then
             MY_LATEST_TAG="None"
