@@ -21,13 +21,12 @@ jobs:
           echo "Constructing expected local tag..."
           MY_EXPECTED_TAG="KernelSU-$OFFICIAL_TAG"
           
-          echo "Fetching the latest release from your repository via API..."
-          # Using curl to hit the API directly. We use the GITHUB_TOKEN to ensure we don't hit rate limits.
-          MY_LATEST_TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases" | \
-            jq -r '[.[] | select(.tag_name | startswith("KernelSU-"))][0].tag_name')
+          echo "Fetching the latest release from repository ..."
+          MY_LATEST_TAG=$(gh release list --limit 100 | awk '{print $1}' | grep "^KernelSU-" | head -n 1)
+          # MY_LATEST_TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          #   "https://api.github.com/repos/${{ github.repository }}/releases" | \
+          #   jq -r '[.[] | select(.tag_name | startswith("KernelSU-"))][0].tag_name')
           
-          # If you have never made a release before, the API returns "null". Let's handle that safely.
           if [ "$MY_LATEST_TAG" == "null" ]; then
             MY_LATEST_TAG="None"
           fi
@@ -55,16 +54,13 @@ jobs:
         echo "Change directory to KernelSU directory..."
         cd KernelSU
               
-        # Safety net: Ensure we have the full git history so the commit count isn't "1"
         git fetch --unshallow > /dev/null 2>&1 || true
         
-        # Count the commits and do the math
         KSU_TAG=$(git describe --abbrev=0 --tags)
         echo "ROOT_TAG=$KSU_TAG" >> $GITHUB_ENV
         KSU_MAJOR=$(echo "$KSU_TAG" | sed -E 's/^v([0-9]+).*/\1/')
         KSU_GIT_COUNT=$(git rev-list --count HEAD)
         
-        # Exact match of the Kbuild math: (Major * 10000) + Commit Count
         KSU_DYNAMIC_VERSION=$(( (KSU_MAJOR * 10000) + KSU_GIT_COUNT ))
         echo "Calculated Version Code: $KSU_DYNAMIC_VERSION"
         echo "Bypassing sandbox bug by patching dynamic version..."
