@@ -43,7 +43,7 @@ jobs:
           MY_EXPECTED_TAG="KernelSU-$OFFICIAL_TAG"
           
           echo "Fetching the latest release from repository ..."
-          MY_LATEST_TAG=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName --jq '.[].tagName' | grep "^KernelSU-" | head -n 1)
+          MY_LATEST_TAG=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName --jq '.[].tagName' | grep "^KernelSU-v?[0-9]" | head -n 1)
           # MY_LATEST_TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           #   "https://api.github.com/repos/${{ github.repository }}/releases" | \
           #   jq -r '[.[] | select(.tag_name | startswith("KernelSU-"))][0].tag_name')
