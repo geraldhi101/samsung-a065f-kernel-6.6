@@ -10,12 +10,12 @@ jobs:
     name: Check for KernelSU Updates
     runs-on: ubuntu-22.04
     outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
+      should-build: ${{ steps.check.outputs.should-build }}
     steps:
       - name: Compare Release Tags
         id: check
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           echo "Fetching latest official KernelSU release..."
           OFFICIAL_TAG=$(curl -sL https://api.github.com/repos/tiann/KernelSU/releases/latest | jq -r '.tag_name')
@@ -35,21 +35,21 @@ jobs:
           
           if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
             echo "Versions match. No new KernelSU update found. Canceling build."
-            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "should-build=false" >> $GITHUB_OUTPUT
           else
             echo "Mismatch detected! A new version is available. Triggering build."
-            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "should-build=true" >> $GITHUB_OUTPUT
           fi
           
-  build_execution:
+  build-execution:
     name: KernelSU Build 
     needs: watchdog
-    if: ${{ needs.watchdog.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.watchdog.outputs.should-build == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/core-compiler.yml
     with:
-      variant_name: "KernelSU"
-      setup_url: "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh"
-      patch_script: |
+      variant-name: "KernelSU"
+      setup-url: "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh"
+      patch-script: |
         echo "Change directory to KernelSU directory..."
         cd KernelSU
               
