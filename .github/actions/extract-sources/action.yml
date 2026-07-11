@@ -1,0 +1,35 @@
+name: 'Extracting Kernel and Toolchain sources'
+description: 'Extracting sources after fetching those.'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Extract Samsung Kernel and toolchain archives
+      shell: bash
+      run: |
+          echo "Extracting Kernel.tar.gz directly to working directories..."
+          tar -xzvf Kernel.tar.gz
+          rm -f Kernel.tar.gz
+          
+          # Safety net for nested Kernel.tar
+          if [ -f Kernel.tar ]; then
+            echo "Unpacking nested Kernel.tar..."
+            tar -xvf Kernel.tar
+            rm -f Kernel.tar
+          fi
+
+          echo "Extracting toolchain.tar.gz..."
+          mkdir temp_toolchain
+          tar -xzvf toolchain.tar.gz -C temp_toolchain
+          rm -f toolchain.tar.gz
+          
+          cd temp_toolchain
+          # Safety net for nested toolchain.tar 
+          if [ -f toolchain.tar ]; then
+            tar -xvf toolchain.tar
+            rm -f toolchain.tar
+          fi
+          cd ..
+          
+          echo "Verifying local directory structure:"
+          ls -la
