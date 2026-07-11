@@ -1,0 +1,28 @@
+name: 'Merge The Toolchain after get it'
+description: 'Merge the Toolchain's files to the kernel directory'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Merge Samsung Toolchain
+      shell: bash
+      run: |
+        echo "Unlocking write permissions on existing directories and toolchain..."
+        # Note: temp_toolchain requires +w permissions here to prevent "Permission denied" errors during the final rm -rf cleanup phase.
+        chmod -R +w kernel/ kernel-6.6/ vendor/ temp_toolchain/ || true
+        
+        echo "Merging toolchain components into the kernel tree..."
+        mkdir -p kernel/build kernel/external kernel/prebuilts
+        
+        # Sync directories while suppressing all output (> /dev/null 2>&1) to keep logs clean. Fails gracefully if empty.
+        rsync -a temp_toolchain/build/ kernel/build/ > /dev/null 2>&1 || true
+        rsync -a temp_toolchain/external/ kernel/external/ > /dev/null 2>&1 || true
+        rsync -a temp_toolchain/prebuilts/ kernel/prebuilts/ > /dev/null 2>&1 || true
+        
+        if [ -d "temp_toolchain/kernel" ]; then
+          rsync -a temp_toolchain/kernel/ kernel/ > /dev/null 2>&1 || true
+        fi
+        
+        echo "Cleaning up temporary files..."
+        # Silently remove the staging folder to prevent log spam
+        rm -rf temp_toolchain > /dev/null 2>&1
