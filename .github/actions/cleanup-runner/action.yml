@@ -5,7 +5,7 @@ runs:
   using: "composite"
   steps:
     - name: Free Disk Space Manually
-      shell: bash  # CRITICAL: Every step in a composite action requires an explicit shell!
+      shell: bash
       run: |
         echo "=== Disk Space BEFORE Cleanup ==="
         df -h
