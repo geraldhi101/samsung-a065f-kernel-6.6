@@ -1,0 +1,35 @@
+name: 'Preparing files to the release'
+description: 'Build files get prepared to be published in release'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare Files for Release
+      shell: bash
+      run: |
+        echo "Creating output directory..."
+        mkdir -p output_release/modules
+        
+        echo "Copying the exact Image.gz file..."
+        cp out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz output_release/ || echo "Image.gz not found!"
+
+        echo "Recursively gathering all compiled kernel modules (.ko files)..."
+        find out/target/product/a06/obj/KLEAF_OBJ/dist/ -name "*.ko" -exec cp {} output_release/modules/ \;
+
+        MODULE_COUNT=$(ls -1q output_release/modules/ | wc -l)
+        
+        if [ "$MODULE_COUNT" -eq 0 ]; then
+          echo "There are no .ko files found! Skipping tar creation."
+        else
+          echo "Creating the Debug archive with symbols..."
+          # Move into the folder, get flat filenames, and pipe them directly into tar
+          (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-with-symbols.tar.gz -T -)
+            
+          echo "Stripping debug symbols for the optimized archive..."
+          find output_release/modules/ -name "*.ko" -exec llvm-strip --strip-debug {} \;
+            
+          echo "Creating the tiny, optimized archive for normal users..."
+          (cd output_release/modules && find . -name "*.ko" -printf "%P\n" | tar -czvf ../modules-without-symbols.tar.gz -T -)
+        fi
+        
+        echo "Image.gz and *.ko files are ready for upload!"
