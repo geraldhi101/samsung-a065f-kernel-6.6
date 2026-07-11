@@ -1,5 +1,5 @@
 name: 'Merge The Toolchain after get it'
-description: 'Merge the Toolchain's files to the kernel directory'
+description: 'Merge the Toolchain files to the kernel directory.'
 
 runs:
   using: "composite"
