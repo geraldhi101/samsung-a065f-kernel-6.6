@@ -11,7 +11,6 @@ runs:
           tar -xzvf Kernel.tar.gz
           rm -f Kernel.tar.gz
           
-          # Safety net for nested Kernel.tar
           if [ -f Kernel.tar ]; then
             echo "Unpacking nested Kernel.tar..."
             tar -xvf Kernel.tar
@@ -24,7 +23,6 @@ runs:
           rm -f toolchain.tar.gz
           
           cd temp_toolchain
-          # Safety net for nested toolchain.tar 
           if [ -f toolchain.tar ]; then
             tar -xvf toolchain.tar
             rm -f toolchain.tar
