@@ -1,0 +1,45 @@
+name: 'Check KernelSU-Next Updates'
+description: 'Checks GitHub API for updates and returns true/false'
+
+outputs:
+  should-build:
+    description: "Boolean variable if a build is needed"
+    value: ${{ steps.check.outputs.result }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compare Release Tags
+      id: check
+      shell: bash
+      run: |
+        echo "Fetching latest official KernelSU-Next release..."
+        OFFICIAL_TAG=$(curl -sL https://api.github.com/repos/rifsxd/KernelSU-Next/releases/latest | 
+                        jq -r '.tag_name')
+        
+        echo "Constructing expected local tag..."
+        MY_EXPECTED_TAG="KernelSU-Next-$OFFICIAL_TAG"
+        
+        echo "Fetching the latest release from your repository..."
+        MY_LATEST_TAG=$(gh release list \
+                        -R ${{ github.repository }} \
+                        --limit 100 \
+                        --json tagName \
+                        --jq '.[].tagName' | 
+                        grep -E "^KernelSU-Next-v?[0-9]" |
+                        head -n 1)
+        
+        if [ "$MY_LATEST_TAG" == "null" ]; then
+          MY_LATEST_TAG="None"
+        fi
+        
+        echo "Official Latest: $OFFICIAL_TAG"
+        echo "My Latest: $MY_LATEST_TAG"
+        
+        if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
+          echo "Versions match. No new KernelSU-Next update found. Canceling build."
+          echo "should-build=false" >> $GITHUB_OUTPUT
+        else
+          echo "Mismatch detected! A new version is available. Triggering build."
+          echo "should-build=true" >> $GITHUB_OUTPUT
+        fi
