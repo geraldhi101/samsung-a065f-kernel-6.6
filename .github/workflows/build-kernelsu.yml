@@ -12,6 +12,9 @@ jobs:
     outputs:
       should-build: ${{ steps.check.outputs.should-build }}
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+    
       - name: Compare Release Tags
         id: check
         env:
