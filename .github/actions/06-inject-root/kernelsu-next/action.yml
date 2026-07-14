@@ -1,5 +1,6 @@
 name: 'Inject KernelSU Next'
 description: 'Downloads and patches KernelSU Next'
+
 runs:
   using: "composite"
   steps:
