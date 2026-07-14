@@ -19,7 +19,7 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        uses: ./.github/actions/check-update/kernelsu-next
+        uses: ./.github/actions/00-check-update/kernelsu-next
           
   build_execution:
     name: KernelSU-Next Build 
