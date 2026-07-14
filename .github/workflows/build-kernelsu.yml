@@ -19,7 +19,7 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        uses: ./.github/actions/check-update/kernelsu
+        uses: ./.github/actions/00-check-update/kernelsu
           
   build-execution:
     name: KernelSU Build
