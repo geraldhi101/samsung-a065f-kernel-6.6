@@ -24,19 +24,19 @@ jobs:
         
       # 2. Clean up the runner
       - name: Free Runner Disk Space
-        uses: ./.github/actions/cleanup-runner
+        uses: ./.github/actions/01-cleanup-runner
         
       # 3. Install Build Dependencies
       - name: Install Build Dependencies
-        uses: ./.github/actions/install-dependencies
+        uses: ./.github/actions/02-install-dependencies
         
       # 4. Securely pull Kernel.tar.gz and toolchain.tar.gz
       - name: Fetch Samsung A06 (SM-A065F) Kernel Source and Toolchain
-        uses: ./.github/actions/fetch-sources/sm-a065f
+        uses: ./.github/actions/03-fetch-sources/sm-a065f
 
       # 5. Handle double extraction & drop intermediate archives instantly
       - name: Extract Samsung Kernel and toolchain archives
-        uses: ./.github/actions/extract-sources
+        uses: ./.github/actions/04-prepare-sources
 
       # 6. Configure JDK 21
       - name: Set up JDK 21
@@ -47,20 +47,20 @@ jobs:
 
       # 7. Merge Samsung Toolchain
       - name: Merge Samsung Toolchain
-        uses: ./.github/actions/merge-toolchain
+        uses: ./.github/actions/05-merge-toolchain
           
       # 8. Automatically patch the kernel tree for root implementation
       - name: Inject Root Implementation
-        uses: ./.github/actions/inject-root
+        uses: ./.github/actions/06-inject-root
           
       # 9. Fire off the original wrapper script provided by Samsung
       - name: Execute Samsung Kernel Build
-        uses: ./.github/actions/run-build/samsung
+        uses: ./.github/actions/07-run-build/samsung
 
       # 10. Gather the final kernel binary and .ko modules files
       - name: Prepare Files for Release
-        uses: ./.github/actions/prepare-release
+        uses: ./.github/actions/08-prepare-release
 
       # 11. Upload directly to GitHub Releases
       - name: Publish to GitHub Releases
-        uses: ./.github/actions/publish-release
+        uses: ./.github/actions/09-publish-release
