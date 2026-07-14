@@ -1,5 +1,5 @@
 name: 'Fetch Samsung A06 (SM-A065F) Sources'
-description: 'Securely downloads the Samsung A06 kernel source code and custom toolchain archives from Google Drive.'
+description: 'Fetch the Samsung A06 kernel source code and custom toolchain archives.'
 
 runs:
   using: "composite"
