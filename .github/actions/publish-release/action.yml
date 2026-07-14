@@ -1,0 +1,39 @@
+name: 'Publish Kernel Release'
+description: 'Uploads compiled kernel files to GitHub Releases for any device.'
+
+inputs:
+  device_name:
+    description: 'The name of the device (e.g., Samsung A06)'
+    required: true
+  variant_name:
+    description: 'The variant being built (e.g., KernelSU-Next)'
+    required: true
+  tag_name:
+    description: 'The exact tag to publish (e.g., KernelSU-Next-v3.2.5)'
+    required: true
+  github_token:
+    description: 'Token required to publish to releases'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Publish to GitHub Releases
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      with:
+        tag_name: ${{ inputs.tag_name }}
+        name: "${{ inputs.device_name }} - ${{ inputs.variant_name }}"
+        body: |
+          Automated ${{ inputs.variant_name }} build for the ${{ inputs.device_name }}.
+          **Included Files:**
+          * `Image.gz`: Image file to be packed with boot.img using tools like magiskboot
+          * `modules-with-symbols.tar.gz`: Compiled modules with debugging symbols
+          * `modules-without-symbols.tar.gz`: Compiled modules without debugging symbols
+        draft: false
+        prerelease: false
+        files: |
+          output_release/Image.gz
+          output_release/modules-with-symbols.tar.gz
+          output_release/modules-without-symbols.tar.gz
