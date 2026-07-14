@@ -1,0 +1,11 @@
+name: 'Execute Samsung build script'
+description: 'Run the build Script that provided by Samsung'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Execute Samsung Kernel Build
+      shell: bash
+      run: |
+        chmod +x build_kernel.sh
+        ./build_kernel.sh
