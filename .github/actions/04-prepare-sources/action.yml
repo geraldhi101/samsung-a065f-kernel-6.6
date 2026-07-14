@@ -7,27 +7,27 @@ runs:
     - name: Extract Samsung Kernel and toolchain archives
       shell: bash
       run: |
-          echo "Extracting Kernel.tar.gz directly to working directories..."
-          tar -xzvf Kernel.tar.gz
-          rm -f Kernel.tar.gz
-          
-          if [ -f Kernel.tar ]; then
-            echo "Unpacking nested Kernel.tar..."
-            tar -xvf Kernel.tar
-            rm -f Kernel.tar
-          fi
+        echo "Extracting Kernel.tar.gz directly to working directories..."
+        tar -xzvf Kernel.tar.gz
+        rm -f Kernel.tar.gz
+        
+        if [ -f Kernel.tar ]; then
+          echo "Unpacking nested Kernel.tar..."
+          tar -xvf Kernel.tar
+          rm -f Kernel.tar
+        fi
 
-          echo "Extracting toolchain.tar.gz..."
-          mkdir temp_toolchain
-          tar -xzvf toolchain.tar.gz -C temp_toolchain
-          rm -f toolchain.tar.gz
-          
-          cd temp_toolchain
-          if [ -f toolchain.tar ]; then
-            tar -xvf toolchain.tar
-            rm -f toolchain.tar
-          fi
-          
-          echo "Verifying local directory structure:"
-          cd ..
-          ls -la
+        echo "Extracting toolchain.tar.gz..."
+        mkdir temp_toolchain
+        tar -xzvf toolchain.tar.gz -C temp_toolchain
+        rm -f toolchain.tar.gz
+        
+        cd temp_toolchain
+        if [ -f toolchain.tar ]; then
+          tar -xvf toolchain.tar
+          rm -f toolchain.tar
+        fi
+        
+        echo "Verifying local directory structure:"
+        cd ..
+        ls -la
