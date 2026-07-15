@@ -37,7 +37,7 @@ runs:
         echo "My Latest: $MY_LATEST_TAG"
         
         if [ "$MY_EXPECTED_TAG" == "$MY_LATEST_TAG" ]; then
-          echo "Versions match. No new KernelSU-Next update found. Canceling build."
+          echo "Versions match. No new KernelSU-Next update found. Canceling build (unless triggering build manually)."
           echo "should-build=false" >> $GITHUB_OUTPUT
         else
           echo "Mismatch detected! A new version is available. Triggering build."
