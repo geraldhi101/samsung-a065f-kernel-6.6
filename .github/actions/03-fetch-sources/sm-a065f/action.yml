@@ -10,7 +10,8 @@ runs:
         echo "Checking if gdown is installed..."
         if ! command -v gdown &> /dev/null; then
           echo "gdown not found. Installing via pip3..."
-          pip3 install --break-system-packages gdown || pip3 install gdown
+          pip3 install --break-system-packages gdown || 
+          pip3 install gdown
         fi
 
         echo "Downloading Kernel.tar.gz from Google Drive..."
