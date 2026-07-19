@@ -1,0 +1,114 @@
+name: 'Check Updates'
+description: 'Checks GitHub API for updates and returns true/false'
+
+outputs:
+  should-build:
+    description: "Boolean variable if a build is needed"
+    value: ${{ steps.check.outputs.should-build }}
+  build-matrix:
+    description: "A JSON array of the variants to build"
+    value: ${{ steps.aggregator.outputs.matrix }}
+  
+runs:
+  using: "composite"
+  steps:
+    - name: Compare KernelSU Release Tags
+      id: ksu-check
+      shell: bash
+      run: |
+        echo "Fetching latest official KernelSU release..."
+        KSU_OFFICIAL_TAG=KernelSU-$(
+                          curl -sL https://api.github.com/repos/tiann/KernelSU/releases/latest | 
+                            jq -r '.tag_name'
+                          )
+        
+        echo "Fetching the latest release from repository..."
+        MY_KSU_TAG=$(
+                      gh release list \
+                          -R ${{ github.repository }} \
+                          --limit 100 \
+                          --json tagName \
+                          --jq '.[].tagName' | 
+                          grep -E "^KernelSU-v?[0-9]" | 
+                          head -n 1
+                    )
+        
+        if [ "$MY_KSU_TAG" == "null" ]; then
+          MY_KSU_TAG="None"
+        fi
+        
+        echo "Official Latest: $KSU_OFFICIAL_TAG"
+        echo "My Latest: $MY_KSU_TAG"
+        
+        if [ "$KSU_OFFICIAL_TAG" == "$MY_KSU_TAG" ]; then
+          echo "Versions match. No new KernelSU update found. Canceling build (unless triggering build manually)."
+          echo "update=false" >> $GITHUB_OUTPUT
+        else
+          echo "Mismatch detected! A new version is available. Triggering build."
+          echo "update=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Compare KernelSU-Next Release Tags
+      id: ksun-check
+      shell: bash
+      run: |
+        echo "Fetching latest official KernelSU-Next release..."
+        KSUN_OFFICIAL_TAG=KernelSU-Next-$(
+                            curl -sL https://api.github.com/repos/rifsxd/KernelSU-Next/releases/latest | 
+                              jq -r '.tag_name'
+                            )
+        
+        echo "Fetching the latest release from your repository..."
+        MY_KSUN_TAG=$(
+                      gh release list \
+                        -R ${{ github.repository }} \
+                        --limit 100 \
+                        --json tagName \
+                        --jq '.[].tagName' | 
+                        grep -E "^KernelSU-Next-v?[0-9]" |
+                        head -n 1
+                    )
+        
+        if [ "$MY_KSUN_TAG" == "null" ]; then
+          MY_KSUN_TAG="None"
+        fi
+        
+        echo "Official Latest: $KSUN_OFFICIAL_TAG"
+        echo "My Latest: $MY_KSUN_TAG"
+        
+        if [ "$KSUN_OFFICIAL_TAG" == "$MY_KSUN_TAG" ]; then
+          echo "Versions match. No new KernelSU-Next update found. Canceling build (unless triggering build manually)."
+          echo "update=false" >> $GITHUB_OUTPUT
+        else
+          echo "Mismatch detected! A new version is available. Triggering build."
+          echo "update=true" >> $GITHUB_OUTPUT
+        fi        
+
+    - name: Build Matrix Output
+      id: aggregator
+      shell: bash
+      run: |
+        VARIANTS_TO_BUILD="[]"
+
+        if [ "${{ steps.ksu-check.outputs.update }}" == "true" ]; then
+          VARIANTS_TO_BUILD=$(
+                              echo "$VARIANTS_TO_BUILD" | 
+                              jq '. + ["KernelSU"]'
+                              )
+        fi
+
+        if [ "${{ steps.ksun-check.outputs.update }}" == "true" ]; then
+          VARIANTS_TO_BUILD=$(
+                              echo "$VARIANTS_TO_BUILD" | 
+                              jq '. + ["KernelSU-Next"]'
+                              )
+        fi
+
+        echo "Final Build Matrix: $VARIANTS_TO_BUILD"
+        echo "matrix=$VARIANTS_TO_BUILD" >> $GITHUB_OUTPUT
+
+        if [ "$VARIANTS_TO_BUILD" == "[]" ]; then
+          echo "should-build=false" >> $GITHUB_OUTPUT
+        else
+          echo "should-build=true" >> $GITHUB_OUTPUT
+        fi
