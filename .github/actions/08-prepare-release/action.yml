@@ -25,18 +25,22 @@ runs:
           echo "There are no .ko files found! Skipping tar creation."
         else
           echo "Creating the Debug archive with symbols..."
-          (cd output_release/modules && 
+          (\
+          cd output_release/modules && 
           find . -name "*.ko" -printf "%P\n" | 
-          tar -czvf ../modules-with-symbols.tar.gz -T -)
+          tar -czvf ../modules-with-symbols.tar.gz -T - \
+          )
             
           echo "Stripping debug symbols for the optimized archive..."
           find output_release/modules/ -name "*.ko" -exec \
           llvm-strip --strip-debug {} \;
             
           echo "Creating the tiny, optimized archive for normal users..."
-          (cd output_release/modules && 
+          (\
+          cd output_release/modules && 
           find . -name "*.ko" -printf "%P\n" | 
-          tar -czvf ../modules-without-symbols.tar.gz -T -)
+          tar -czvf ../modules-without-symbols.tar.gz -T - \
+          )
         fi
         
         echo "Image.gz and *.ko files are ready for upload!"
