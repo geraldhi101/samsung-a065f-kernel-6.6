@@ -1,14 +1,14 @@
-name: 'Merge The Toolchain after get it'
-description: 'Merge the Toolchain files to the kernel directory.'
+name: 'Merge the toolchain after getting it'
+description: 'Merge the toolchain sources files to the kernel directory.'
 
 runs:
   using: "composite"
   steps:
-    - name: Merge Samsung Toolchain
+    - name: Merge Toolchain Sources
       shell: bash
       run: |
         echo "Unlocking write permissions on existing directories and toolchain..."
-        chmod -R +w kernel/ kernel-6.6/ vendor/ temp_toolchain/ || true
+        chmod -R +w kernel/ kernel-[0-9].[0-9]*/ vendor/ temp_toolchain/ || true
         
         echo "Merging toolchain components into the kernel tree..."
         mkdir -p kernel/build kernel/external kernel/prebuilts
