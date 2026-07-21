@@ -4,7 +4,7 @@ description: 'Conditionally extracts sources only if they were downloaded as arc
 runs:
   using: "composite"
   steps:
-    - name: Extract Samsung Kernel and toolchain archives
+    - name: Preparing Kernel source and toolchain archives
       shell: bash
       run: |
         echo "=== Checking for Kernel Archives ==="
