@@ -1,0 +1,81 @@
+name: 'Fetch Samsung A06 (SM-A065F) Sources'
+description: 'Fetch kernel/toolchain sources with multi-select fallback support.'
+
+inputs:
+  use-gdown:
+    description: 'Use Google Drive'
+    required: false
+    default: 'true'
+  use-wget:
+    description: 'Use Direct Link'
+    required: false
+    default: 'false'
+  use-git:
+    description: 'Use Git Clone'
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run Fetch Logic
+      shell: bash
+      run: |
+        GDOWN_KERNEL="https://drive.google.com/file/d/1mYxE44LH-xz8fg0GuEYxcJ-f7OS6mGke/view?usp=sharing"
+        GDOWN_TOOLCHAIN="https://drive.google.com/file/d/1OxwZZNzDaY-VoSqJSFjPuKfKKQuzNcUP/view?usp=sharing"
+        
+        WGET_KERNEL="https://example.com/a06/Kernel.tar.gz"
+        WGET_TOOLCHAIN="https://example.com/a06/toolchain.tar.gz"
+        
+        GIT_KERNEL="https://github.com/example/kernel_samsung_a06.git"
+        GIT_TOOLCHAIN="https://github.com/example/toolchain_a06.git"
+
+        run_gdown() {
+          echo "==> Attempting gdown..."
+          if ! command -v gdown &> /dev/null; then
+            pip3 install --break-system-packages gdown || pip3 install gdown
+          fi
+          gdown "$GDOWN_KERNEL" -O Kernel.tar.gz || return 1
+          gdown "$GDOWN_TOOLCHAIN" -O toolchain.tar.gz || return 1
+          return 0
+        }
+
+        run_wget() {
+          echo "==> Attempting wget..."
+          wget -O Kernel.tar.gz "$WGET_KERNEL" || return 1
+          wget -O toolchain.tar.gz "$WGET_TOOLCHAIN" || return 1
+          return 0
+        }
+
+        run_git() {
+          echo "==> Attempting git clone..."
+          git clone --depth=1 "$GIT_KERNEL" kernel_src || return 1
+          git clone --depth=1 "$GIT_TOOLCHAIN" temp_toolchain || return 1
+          return 0
+        }
+
+        METHODS=()
+        if [ "${{ inputs.use-gdown }}" == "true" ]; then METHODS+=("run_gdown"); fi
+        if [ "${{ inputs.use-wget }}" == "true" ]; then METHODS+=("run_wget"); fi
+        if [ "${{ inputs.use-git }}" == "true" ]; then METHODS+=("run_git"); fi
+
+        if [ ${#METHODS[@]} -eq 0 ]; then
+          echo "FATAL: You must select at least one fetch method!"
+          exit 1
+        fi
+
+        SUCCESS=false
+        for method in "${METHODS[@]}"; do
+          if $method; then
+            echo "SUCCESS: Fetched sources using $method!"
+            SUCCESS=true
+            break # Exit the loop if it succeeds!
+          else
+            echo "WARNING: $method failed. Moving to next selected method..."
+          fi
+        done
+
+        if [ "$SUCCESS" = false ]; then
+          echo "FATAL: All selected fetch methods failed!"
+          exit 1
+        fi
