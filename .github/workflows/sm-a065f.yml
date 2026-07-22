@@ -2,8 +2,17 @@ name: Build Samsung A06 (SM-A065F)
 
 on:
   workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: 'Firmware string'
+        required: true
+        type: string
   schedule:
     - cron: '0 0 */3 * *'
+
+env:
+  DEVICE_CODENAME: 'A06'
+  KERNEL_VERSION: ${{ github.event.inputs.kernel_version || 'Scheduled-Build' }}
 
 jobs:
   watchdog:
@@ -15,7 +24,7 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-    
+        
       - name: Compare Release Tags
         id: check
         env:
@@ -23,7 +32,7 @@ jobs:
         uses: ./.github/actions/00-check-update/kernelsu
           
   build:
-    name: Build Execution
+    name: Build (${{ matrix.root_method }})
     needs: watchdog
     if: |
       ${{
@@ -31,6 +40,10 @@ jobs:
         github.event_name == 'workflow_dispatch'
       }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # If KSU fails, keep building KSU-Next and None
+      matrix:
+        root_method: [kernelsu, kernelsu-next, none]
     permissions:
       contents: read
     steps:
@@ -60,23 +73,46 @@ jobs:
           
       - name: Inject Root Implementation
         uses: ./.github/actions/06-inject-root
+        with:
+          root-method: ${{ matrix.root_method }}
           
       - name: Execute Samsung Kernel Build
         uses: ./.github/actions/07-run-build/samsung
 
       - name: Prepare Files for Release
         uses: ./.github/actions/08-prepare-release
+        with:
+          device-codename: ${{ env.DEVICE_CODENAME }}
+          kernel-version: ${{ env.KERNEL_VERSION }}
+          root-method: ${{ matrix.root_method }}
+          
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files-${{ matrix.root_method }}
+          path: output_release/*.gz
+          retention-days: 1
         
   release:
-    name: Publishing Release
+    name: Publishing Unified Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: build # Waits for ALL matrix builds (KSU, KSU-Next, None) to finish
     permissions:
       contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  
     
+      - name: Download all Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-files-* 
+          merge-multiple: true     
+          path: final-release-files
+
       - name: Publish to GitHub Releases
         uses: ./.github/actions/09-publish-release
-  
+        with:
+          device_name: ${{ env.DEVICE_CODENAME }}
+          kernel_version: ${{ env.KERNEL_VERSION }}
+          files_path: "final-release-files/*"
