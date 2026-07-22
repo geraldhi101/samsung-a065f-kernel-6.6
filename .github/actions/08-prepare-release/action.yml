@@ -1,5 +1,16 @@
-name: 'Preparing files to the release'
-description: 'Build files get prepared to be published in release'
+name: 'Preparing files for the release'
+description: 'Finds, renames, and prepares the compiled kernel image for release.'
+
+inputs:
+  device-codename:
+    description: 'The device codename (e.g., a06)'
+    required: true
+  kernel-version:
+    description: 'The firmware string (e.g., A065FXXXS4BYG6)'
+    required: true
+  root-method:
+    description: 'The root method used (kernelsu, kernelsu-next, none)'
+    required: true
 
 runs:
   using: "composite"
@@ -7,42 +18,50 @@ runs:
     - name: Prepare Files for Release
       shell: bash
       run: |
-        echo "Creating output directory..."
-        mkdir -p output_release/modules
+        echo "=== Setting up Release Variables ==="
+        DEVICE="${{ inputs.device-codename }}"
+        ROOT_METHOD="${{ inputs.root-method }}"
+        KERNEL_VER="${{ inputs.kernel-version }}"
         
-        echo "Copying the exact Image.gz file..."
-        find out/target/product/a06/obj/KLEAF_OBJ/dist/ -name "Image.gz" -exec \
-        cp {} output_release/ || 
-        echo "Image.gz not found!"
-
-        # echo "Recursively gathering all compiled kernel modules (.ko files)..."
-        # find out/target/product/a06/obj/KLEAF_OBJ/dist/ -name "*.ko" -exec \
-        # cp {} output_release/modules/ \;
-
-        # MODULE_COUNT=$(ls -1q output_release/modules/ | wc -l)
+        ROOT_VERSION="${ROOT_TAG:-unknown}"
         
-        # if [ "$MODULE_COUNT" -eq 0 ]; then
-        #   echo "There are no .ko files found! Skipping tar creation."
-        # else
-        #   echo "Creating the Debug archive with symbols..."
-        #   (
-        #     cd output_release/modules && 
-        #     find . -name "*.ko" -printf "%P\n" | 
-        #       tar -czvf ../modules-with-symbols.tar.gz -T -
-        #   )
-            
-        #   echo "Stripping debug symbols for the optimized archive..."
-        #   find output_release/modules/ -name "*.ko" -exec \
-        #   llvm-strip --strip-debug {} \;
-            
-        #   echo "Creating the tiny, optimized archive for normal users..."
-        #   (
-        #     cd output_release/modules && 
-        #     find . -name "*.ko" -printf "%P\n" | 
-        #       tar -czvf ../modules-without-symbols.tar.gz -T -
-        #   )
-        # fi
-
-        echo "Image.gz ready to upload for release"
-        # echo "Image.gz and *.ko files are ready for upload!"
+        if [ "$ROOT_METHOD" == "none" ]; then
+          FINAL_FILENAME="Kernel-${KERNEL_VER}.gz"
+          RELEASE_TITLE="${DEVICE^^} Kernel - ${KERNEL_VER}" # ^^ capitalizes the string
+          RELEASE_TAG="${KERNEL_VER}-Stock"
+        else
+          # Capitalize the root method name properly
+          if [ "$ROOT_METHOD" == "kernelsu" ]; then
+            DISPLAY_ROOT="KernelSU"
+          elif [ "$ROOT_METHOD" == "kernelsu-next" ]; then
+            DISPLAY_ROOT="KernelSU-Next"
+          fi
+          
+          FINAL_FILENAME="${DISPLAY_ROOT}-${ROOT_VERSION}-${KERNEL_VER}.gz"
+          RELEASE_TITLE="${DISPLAY_ROOT} ${ROOT_VERSION} for ${DEVICE^^} - ${KERNEL_VER}"
+          RELEASE_TAG="${KERNEL_VER}-${DISPLAY_ROOT}-${ROOT_VERSION}"
+        fi
         
+        echo "Target filename: $FINAL_FILENAME"
+        
+        echo "=== Preparing Output Directory ==="
+        mkdir -p output_release
+        
+        echo "=== Locating and Renaming Image.gz ==="
+        SEARCH_PATH="out/target/product/$DEVICE/obj/KLEAF_OBJ/dist/"
+        
+        IMAGE_FILE=$(find "$SEARCH_PATH" -name "Image.gz" | head -n 1)
+        
+        if [ -z "$IMAGE_FILE" ]; then
+          echo "FATAL: Image.gz not found in $SEARCH_PATH!"
+          exit 1
+        fi
+        
+        echo "Found Image.gz at: $IMAGE_FILE"
+        
+        cp "$IMAGE_FILE" "output_release/$FINAL_FILENAME"
+        echo "Successfully copied and renamed to: output_release/$FINAL_FILENAME"
+        
+        # 5. Export variables for the publish-release step!
+        echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_ENV
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
