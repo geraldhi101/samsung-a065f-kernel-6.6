@@ -3,13 +3,13 @@ description: 'Finds, renames, and prepares the compiled kernel image for release
 
 inputs:
   device-codename:
-    description: 'The device codename (e.g., a06)'
+    description: 'The device codename'
     required: true
   kernel-version:
-    description: 'The firmware string (e.g., A065FXXXS4BYG6)'
+    description: 'The firmware string'
     required: true
   root-method:
-    description: 'The root method used (kernelsu, kernelsu-next, none)'
+    description: 'The root method used'
     required: true
 
 runs:
@@ -27,10 +27,9 @@ runs:
         
         if [ "$ROOT_METHOD" == "none" ]; then
           FINAL_FILENAME="Kernel-${KERNEL_VER}.gz"
-          RELEASE_TITLE="${DEVICE^^} Kernel - ${KERNEL_VER}" # ^^ capitalizes the string
+          RELEASE_TITLE="${DEVICE^^} Kernel - ${KERNEL_VER}"
           RELEASE_TAG="${KERNEL_VER}-Stock"
         else
-          # Capitalize the root method name properly
           if [ "$ROOT_METHOD" == "kernelsu" ]; then
             DISPLAY_ROOT="KernelSU"
           elif [ "$ROOT_METHOD" == "kernelsu-next" ]; then
@@ -62,6 +61,5 @@ runs:
         cp "$IMAGE_FILE" "output_release/$FINAL_FILENAME"
         echo "Successfully copied and renamed to: output_release/$FINAL_FILENAME"
         
-        # 5. Export variables for the publish-release step!
         echo "RELEASE_TITLE=$RELEASE_TITLE" >> $GITHUB_ENV
         echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
