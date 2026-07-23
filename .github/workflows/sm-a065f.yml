@@ -3,24 +3,21 @@ name: Build Samsung A06 (SM-A065F)
 on:
   workflow_dispatch:
     inputs:
-      fetch_gdown:
-        description: 'Fetch using Google Drive (gdown)'
-        type: boolean
-        default: true
-      fetch_wget:
-        description: 'Fetch using Direct Link (wget)'
-        type: boolean
-        default: false
-      fetch_git:
-        description: 'Fetch using Git Clone'
-        type: boolean
-        default: false
+      fetch_method:
+        description: '[FETCH] Select Download Method'
+        required: true
+        default: 'gdown'
+        type: choice
+        options:
+          - gdown
+          - wget
+          - git
       build_ksu:
-        description: 'Build KernelSU'
+        description: '[ROOT] Build KernelSU'
         type: boolean
         default: true
       build_ksunext:
-        description: 'Build KernelSU-Next'
+        description: '[ROOT] Build KernelSU-Next'
         type: boolean
         default: false
   schedule:
@@ -42,21 +39,24 @@ jobs:
         id: config
         uses: ./.github/actions/00-device-config/sm-a065f
 
-      - name: Generate Matrix Target
+      - name: Generate Strict Matrix Target
         id: set-matrix
         run: |
-          TARGETS=()
-          if [ "${{ inputs.build_ksu }}" == "true" ] || [ "${{ github.event_name }}" == "schedule" ]; then
-            TARGETS+=('"kernelsu"')
+          KSU="${{ inputs.build_ksu }}"
+          KSUNEXT="${{ inputs.build_ksunext }}"
+          EVENT="${{ github.event_name }}"
+          
+          if [[ "$KSU" == "true" && "$KSUNEXT" == "true" ]]; then
+            TARGETS="[\"kernelsu\", \"kernelsu-next\"]"
+          elif [[ "$KSUNEXT" == "true" ]]; then
+            TARGETS="[\"kernelsu-next\"]"
+          elif [[ "$KSU" == "true" || "$EVENT" == "schedule" ]]; then
+            TARGETS="[\"kernelsu\"]"
+          else
+            TARGETS="[\"kernelsu\"]" # Ultimate fallback if somehow nothing is selected
           fi
-          if [ "${{ inputs.build_ksunext }}" == "true" ]; then
-            TARGETS+=('"kernelsu-next"')
-          fi
-          if [ ${#TARGETS[@]} -eq 0 ]; then
-            TARGETS+=('"kernelsu"') # Fallback if nothing checked
-          fi
-          JSON=$(IFS=,; echo "[${TARGETS[*]}]")
-          echo "matrix={\"root_method\":$JSON}" >> $GITHUB_OUTPUT
+          
+          echo "matrix={\"root_method\":$TARGETS}" >> $GITHUB_OUTPUT
 
   watchdog:
     name: Check for Updates
@@ -101,9 +101,7 @@ jobs:
       - name: Fetch Samsung Kernel Source and Toolchain
         uses: ./.github/actions/03-fetch-sources/sm-a065f
         with:
-          use-gdown: ${{ inputs.fetch_gdown || 'true' }}
-          use-wget: ${{ inputs.fetch_wget || 'false' }}
-          use-git: ${{ inputs.fetch_git || 'false' }}
+          method: ${{ inputs.fetch_method || 'gdown' }}
 
       - name: Extract Samsung Kernel and toolchain archives
         uses: ./.github/actions/04-prepare-sources
